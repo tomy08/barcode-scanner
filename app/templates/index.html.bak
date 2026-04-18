@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lector de Códigos (Python Puro)</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background-color: #f4f4f9;
+        padding: 20px;
+        max-width: 600px;
+        margin: auto;
+        color: #333;
+      }
+      h1 {
+        text-align: center;
+        color: #2c3e50;
+      }
+      .card {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        margin-bottom: 20px;
+      }
+      .message {
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        background-color: #e2e3e5;
+        font-weight: bold;
+      }
+      button {
+        background-color: #27ae60;
+        color: white;
+        border: none;
+        padding: 12px 20px;
+        border-radius: 5px;
+        font-size: 16px;
+        cursor: pointer;
+        width: 100%;
+      }
+      button:hover {
+        background-color: #219150;
+      }
+      input[type='file'] {
+        margin-bottom: 15px;
+        width: 100%;
+        padding: 10px;
+        background-color: #ecf0f1;
+        border-radius: 5px;
+      }
+      ul {
+        list-style-type: none;
+        padding: 0;
+      }
+      li {
+        background: #ecf0f1;
+        margin-bottom: 8px;
+        padding: 12px;
+        border-radius: 5px;
+        border-left: 4px solid #3498db;
+      }
+      .date {
+        font-size: 0.85em;
+        color: #7f8c8d;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Lector Python (SQuaRE)</h1>
+
+    <div class="card">
+      <h2>Escanear Nuevo Código</h2>
+      <p>
+        Toma una foto del código de barras. El procesamiento se realizará 100%
+        en el servidor (Python).
+      </p>
+
+      {% if message %}
+      <div class="message">{{ message }}</div>
+      {% endif %}
+
+      <!-- Formulario puro sin JavaScript. Funciona nativamente en cualquier navegador. -->
+      <form action="/scan" method="post" enctype="multipart/form-data">
+        <input
+          type="file"
+          name="file"
+          accept="image/*"
+          capture="environment"
+          required
+        />
+        <button type="submit">Enviar Foto y Procesar</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>Últimos Códigos Guardados</h2>
+      {% if barcodes %}
+      <ul>
+        {% for bc in barcodes %}
+        <li>
+          <strong>{{ bc.data }}</strong> ({{ bc.type }})<br />
+          <span class="date"
+            >{{ bc.scanned_at.strftime('%Y-%m-%d %H:%M:%S') }}</span
+          >
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p>No hay códigos escaneados aún.</p>
+      {% endif %}
+    </div>
+  </body>
+</html>

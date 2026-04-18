@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+sqlalchemy
+jinja2
+python-multipart
+Pillow
+zxing-cpp
+numpy
+opencv-python-headless

@@ -1,0 +1,20 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Caché de Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Base de datos local SQLite (No debe subirse a la nube)
+*.db
+*.sqlite
+*.sqlite3
+
+# Archivos de depuración y fotos temporales
+debug_last_capture.jpg
+
+# Variables de entorno y configuraciones locales
+.env
