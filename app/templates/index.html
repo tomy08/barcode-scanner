@@ -13,36 +13,24 @@
         margin: auto;
         color: #333;
       }
-      h1 {
-        text-align: center;
-        color: #2c3e50;
-      }
+      h1 { text-align: center; color: #2c3e50; }
       .card {
         background: white;
         padding: 20px;
         border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
         margin-bottom: 20px;
         text-align: center;
       }
       .message {
         padding: 15px;
-        margin-bottom: 20px;
+        margin-bottom: 15px;
         border-radius: 5px;
         font-weight: bold;
         display: none;
       }
-      .success {
-        background-color: #d4edda;
-        color: #155724;
-        border: 1px solid #c3e6cb;
-      }
-      .error {
-        background-color: #f8d7da;
-        color: #721c24;
-        border: 1px solid #f5c6cb;
-      }
-
+      .success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+      .error   { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
       .btn {
         display: inline-block;
         background-color: #3498db;
@@ -56,25 +44,49 @@
         margin-top: 10px;
         box-sizing: border-box;
       }
-      .btn:hover {
-        background-color: #2980b9;
+      .btn:hover { background-color: #2980b9; }
+      .btn-success { background-color: #27ae60; }
+      .btn-success:hover { background-color: #219150; }
+      .btn-danger { background-color: #e74c3c; }
+      .btn-danger:hover { background-color: #c0392b; }
+
+      /* Contenedor del escáner */
+      #reader {
+        width: 100%;
+        margin-top: 15px;
+        border-radius: 8px;
+        overflow: hidden;
+        display: none;
       }
-      .btn-success {
-        background-color: #27ae60;
+      /* Forzar que el video de html5-qrcode ocupe todo el ancho */
+      #reader video {
+        width: 100% !important;
+        height: auto !important;
       }
-      .btn-success:hover {
-        background-color: #219150;
-      }
-      .btn.disabled {
-        background-color: #95a5a6;
-        cursor: not-allowed;
+      #reader__scan_region {
+        background: #000;
       }
 
-      ul {
-        list-style-type: none;
-        padding: 0;
-        text-align: left;
+      #scan-status {
+        margin-top: 8px;
+        font-size: 0.9em;
+        color: #555;
+        min-height: 22px;
       }
+      .dot {
+        display: inline-block;
+        width: 10px; height: 10px;
+        border-radius: 50%;
+        background: #27ae60;
+        animation: pulse 1s infinite;
+        margin-right: 5px;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50%       { opacity: 0.2; }
+      }
+
+      ul { list-style-type: none; padding: 0; text-align: left; }
       li {
         background: #ecf0f1;
         margin-bottom: 8px;
@@ -82,13 +94,7 @@
         border-radius: 5px;
         border-left: 4px solid #27ae60;
       }
-      .date {
-        font-size: 0.85em;
-        color: #7f8c8d;
-      }
-      input[type='file'] {
-        display: none;
-      }
+      .date { font-size: 0.85em; color: #7f8c8d; }
     </style>
   </head>
   <body>
@@ -96,27 +102,15 @@
 
     <div class="card">
       <h2>Escanear Código</h2>
-      <p>
-        Utiliza la cámara para capturar el código y registrarlo automáticamente
-        en el sistema.
-      </p>
+      <p>Apunta la cámara al código. La detección es automática.</p>
 
       <div id="msg-box" class="message"></div>
 
-      <label for="cameraInput" class="btn btn-success" id="btnCamera"
-        >📸 Abrir Cámara</label
-      >
-      <input
-        type="file"
-        id="cameraInput"
-        accept="image/*"
-        capture="environment"
-      />
+      <button class="btn btn-success" id="btnStart">📷 Iniciar Escáner</button>
+      <button class="btn btn-danger"  id="btnStop" style="display:none;">⏹ Detener</button>
 
-      <label for="fileInput" class="btn" id="btnFile"
-        >📂 Subir de Galería</label
-      >
-      <input type="file" id="fileInput" accept="image/*" />
+      <div id="reader"></div>
+      <div id="scan-status"></div>
     </div>
 
     <div class="card">
@@ -125,9 +119,7 @@
         {% for bc in barcodes %}
         <li>
           <strong>{{ bc.data }}</strong> ({{ bc.type }})<br />
-          <span class="date"
-            >{{ bc.scanned_at.strftime('%Y-%m-%d %H:%M:%S') }}</span
-          >
+          <span class="date">{{ bc.scanned_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
         </li>
         {% endfor %}
       </ul>
@@ -136,77 +128,145 @@
       {% endif %}
     </div>
 
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
     <script>
-      const cameraInput = document.getElementById('cameraInput')
-      const fileInput = document.getElementById('fileInput')
-      const msgBox = document.getElementById('msg-box')
+      const msgBox      = document.getElementById('msg-box')
       const barcodeList = document.getElementById('barcode-list')
       const noCodesText = document.getElementById('no-codes-text')
-      const btnCamera = document.getElementById('btnCamera')
-      const btnFile = document.getElementById('btnFile')
+      const scanStatus  = document.getElementById('scan-status')
+      const btnStart    = document.getElementById('btnStart')
+      const btnStop     = document.getElementById('btnStop')
+      const readerDiv   = document.getElementById('reader')
+
+      let scanner  = null
+      let cooldown = false
+      let lastCode = null
 
       function showMessage(text, type) {
-        msgBox.innerText = text
-        msgBox.className = 'message ' + type
+        msgBox.innerText     = text
+        msgBox.className     = 'message ' + type
         msgBox.style.display = 'block'
       }
 
-      async function processImage(file) {
-        if (!file) return
+      function setScanStatus(html) {
+        scanStatus.innerHTML = html
+      }
 
-        // Bloquear botones temporalmente
-        btnCamera.classList.add('disabled')
-        btnFile.classList.add('disabled')
-        const oldText = btnCamera.innerText
-        btnCamera.innerText = '⏳ Procesando imagen...'
-        msgBox.style.display = 'none'
+      btnStart.addEventListener('click', startScanner)
+      btnStop.addEventListener('click',  stopScanner)
 
-        const formData = new FormData()
-        formData.append('file', file)
+      async function startScanner() {
+        readerDiv.style.display = 'block'
+        btnStart.style.display  = 'none'
+        btnStop.style.display   = 'block'
+        setScanStatus('<span class="dot"></span> Iniciando cámara...')
 
+        scanner = new Html5Qrcode('reader')
+
+        const config = {
+          fps: 15,                // frames por segundo a analizar
+          qrbox: { width: 280, height: 180 },  // área de enfoque
+          aspectRatio: 1.7,
+          formatsToSupport: [     // todos los formatos de código de barras
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.CODE_93,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E,
+            Html5QrcodeSupportedFormats.ITF,
+            Html5QrcodeSupportedFormats.CODABAR,
+            Html5QrcodeSupportedFormats.DATA_MATRIX,
+            Html5QrcodeSupportedFormats.PDF_417,
+            Html5QrcodeSupportedFormats.AZTEC,
+          ],
+          // Máxima resolución disponible para mejor enfoque
+          videoConstraints: {
+            facingMode: 'environment',
+            width:  { ideal: 1920 },
+            height: { ideal: 1080 },
+          }
+        }
+
+        try {
+          await scanner.start(
+            { facingMode: 'environment' },
+            config,
+            onScanSuccess,
+            onScanFailure
+          )
+          setScanStatus('<span class="dot"></span> Buscando código...')
+        } catch (err) {
+          showMessage('❌ No se pudo acceder a la cámara: ' + err, 'error')
+          readerDiv.style.display = 'none'
+          btnStart.style.display  = 'block'
+          btnStop.style.display   = 'none'
+          setScanStatus('')
+        }
+      }
+
+      async function stopScanner() {
+        if (scanner) {
+          try { await scanner.stop() } catch (_) {}
+          scanner = null
+        }
+        readerDiv.style.display = 'none'
+        btnStart.style.display  = 'block'
+        btnStop.style.display   = 'none'
+        setScanStatus('')
+        cooldown = false
+        lastCode = null
+      }
+
+      function onScanSuccess(decodedText, decodedResult) {
+        if (cooldown || decodedText === lastCode) return
+        cooldown = true
+        lastCode = decodedText
+
+        const formatName = decodedResult.result?.format?.formatName ?? 'UNKNOWN'
+        setScanStatus(`✅ Detectado: <strong>${decodedText}</strong>`)
+        sendToServer(decodedText, formatName)
+
+        // 2.5 s de pausa antes de volver a escanear
+        setTimeout(() => {
+          cooldown = false
+          lastCode = null
+          if (scanner) setScanStatus('<span class="dot"></span> Buscando código...')
+        }, 2500)
+      }
+
+      function onScanFailure(error) {
+        // Silencioso — falla en cada frame sin código, es normal
+      }
+
+      async function sendToServer(data, type) {
         try {
           const response = await fetch('/api/scan', {
             method: 'POST',
-            body: formData,
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data, type }),
           })
-
           const result = await response.json()
 
           if (response.ok && result.success) {
             showMessage('✅ ' + result.message, 'success')
-
             if (noCodesText) noCodesText.style.display = 'none'
 
-            const newItem = document.createElement('li')
-            newItem.innerHTML = `<strong>${result.barcode.data}</strong> (${result.barcode.type})<br>
-                                         <span class="date">${result.barcode.scanned_at}</span>`
-
-            barcodeList.prepend(newItem)
+            const li = document.createElement('li')
+            li.innerHTML = `<strong>${result.barcode.data}</strong> (${result.barcode.type})<br>
+                            <span class="date">${result.barcode.scanned_at}</span>`
+            barcodeList.prepend(li)
           } else {
-            showMessage(
-              '❌ ' + (result.message || 'Error procesando el código'),
-              'error',
-            )
+            showMessage('❌ ' + (result.message || 'Error guardando el código'), 'error')
           }
-        } catch (error) {
+        } catch (err) {
           showMessage('❌ Error de comunicación con el servidor.', 'error')
-        } finally {
-          btnCamera.classList.remove('disabled')
-          btnFile.classList.remove('disabled')
-          btnCamera.innerText = oldText
-
-          // Limpiar inputs para permitir resubir la misma foto
-          cameraInput.value = ''
-          fileInput.value = ''
+          console.error(err)
         }
       }
-
-      cameraInput.addEventListener('change', (e) =>
-        processImage(e.target.files[0]),
-      )
-      fileInput.addEventListener('change', (e) =>
-        processImage(e.target.files[0]),
-      )
     </script>
   </body>
 </html>
